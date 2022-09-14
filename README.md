@@ -29,30 +29,6 @@ Based on：[https://github.com/xrervip/AutoYuketangforHIT](https://github.com/xr
 	},
 	{
 		"domain": "your.domain.cn",
-		"name": "csrftoken",
-		"path": "/",
-		"value": ""
-	},
-	{
-		"domain": "your.domain.cn",
-		"name": "platform_id",
-		"path": "/",
-		"value": ""
-	},
-	{
-		"domain": "your.domain.cn",
-		"name": "university_id",
-		"path": "/",
-		"value": ""
-	},
-	{
-		"domain": "your.domain.cn",
-		"name": "xtbz",
-		"path": "/",
-		"value": ""
-	},
-	{
-		"domain": "your.domain.cn",
 		"name": "platform_type",
 		"path": "/",
 		"value": ""
@@ -68,12 +44,4 @@ Based on：[https://github.com/xrervip/AutoYuketangforHIT](https://github.com/xr
 	```
 4. 脚本将自动先爬取所有视频链接，之后自动播放并开启二倍速；
 5. 可以通过运行多个脚本实现同时刷不同网课。
-
-<style>
-pre {
-  overflow-y: auto;
-  max-height: 100px;
-}
-</style>
-
 
