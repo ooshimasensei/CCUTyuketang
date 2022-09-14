@@ -29,6 +29,30 @@ Based on：[https://github.com/xrervip/AutoYuketangforHIT](https://github.com/xr
 	},
 	{
 		"domain": "your.domain.cn",
+		"name": "csrftoken",
+		"path": "/",
+		"value": ""
+	},
+	{
+		"domain": "your.domain.cn",
+		"name": "platform_id",
+		"path": "/",
+		"value": ""
+	},
+	{
+		"domain": "your.domain.cn",
+		"name": "university_id",
+		"path": "/",
+		"value": ""
+	},
+	{
+		"domain": "your.domain.cn",
+		"name": "xtbz",
+		"path": "/",
+		"value": ""
+	},
+	{
+		"domain": "your.domain.cn",
 		"name": "platform_type",
 		"path": "/",
 		"value": ""
