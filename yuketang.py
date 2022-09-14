@@ -1,19 +1,12 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
-# @Time  : 2020/11/27 19:14
-# @Author: f
-# @Modified: Keuin
-# @File  : 雨课堂forHIT.py
 
 """
-代码基于https://github.com/lingyan12/yuketang
-和https://github.com/xrervip/HIT_auto_report/blob/master/HIT_auto_report.py修改而来。
-依赖于python运行环境+chrome+selenium chrome驱动。
-selenium chrome驱动的镜像地址: http://npm.taobao.org/mirrors/selenium
-
-说明：使用参数`with_cookie`可以在`cookie.json`写入cookie并进行快捷登录
+Base on https://github.com/xrervip/AutoYuketangforHIT
+Use parameter '-CookieMode' to login by cookies from 'cookie.txt'
 """
 
+from ast import If
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
@@ -31,7 +24,7 @@ import re
 
 # from @Keuin: 如果不好使了，可能是因为网页布局有所改变，
 # 请自行打开播放页面，用F12逐个定位下面列出的元素，并更新将他们的XPATH常量
-XPATH_HOME_PAGE_LOGIN_BUTTON = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[1]/div/div/div[2]/button'
+XPATH_HOME_PAGE_LOGIN_BUTTON = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[1]/div/div/div/div[2]/button'
 XPATH_SCORE_SHEET_VIDEO_HYPERLINK = "//span[@class='cursorpoint unit-name-hover']"
 XPATH_SCORE_SHEET_VIDEO_LIST = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div[2]/section[2]/div[2]'
 XPATH_LABEL_VIDEO_DURATION = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-time/span[2]'
@@ -39,7 +32,8 @@ XPATH_LABEL_TIME_PLAYED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div
 XPATH_BUTTON_2X_SPEED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-speedbutton/xt-speedlist/ul/li[1]'
 XPATH_BUTTON_SELECT_PLAY_SPEED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-speedbutton/xt-speedvalue'
 XPATH_BUTTON_PLAY = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-playbutton'
-XPATH_VIDEO_PLAYER = "/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-bigbutton/xt-poster"
+XPATH_BUTTON_PLAY_STATUS = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-playbutton/xt-tip'
+XPATH_VIDEO_PLAYER = "/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div[2]/div/xt-wrap/xt-bigbutton"
 XPATH_WATCH_PROGRESS = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[1]/div[2]/div/div/span'
 XPATH_VIDEO_TITLE = "/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[1]/div[1]/span"
 
@@ -47,15 +41,14 @@ XPATH_VIDEO_TITLE = "/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/s
 下一步目标：
 1.增加多线程播放功能
 2.提高稳定性和健壮性
-3.完善倍速播放
 """
 
 CONFIG_FILE = "./config.json"  # 配置文件的路径，一般不需要修改
-HOME_URL = 'https://hit.yuketang.cn/pro/portal/home/'  # 雨课堂首页，如果移植到别的学校的平台，需要修改
+URL_LIST = "url_list.txt"
 
-
-class AutoYuketangForHIT:
+class AutoYuketang:
     course_url = ""
+    home_url = ""
     course_id = ""
 
     def __init__(self, mode):
@@ -66,10 +59,10 @@ class AutoYuketangForHIT:
 
         self.set_chrome_driver()
 
+        self.read_config_file()  # 从JSON读入URL
+
         """使用CookieMode登录"""
         self.load_cookie(with_cookie)
-
-        self.read_config_file()  # 从JSON读入URL
 
         self.load_url(self.course_url)
 
@@ -81,8 +74,8 @@ class AutoYuketangForHIT:
                 print("成功登录雨课堂")
                 break
 
-        self.prepare_video_list('url_list.txt')
-        self.play_video_list('url_list.txt')
+        self.prepare_video_list(URL_LIST)
+        self.play_video_list(URL_LIST)
 
         self.driver.quit()
 
@@ -123,6 +116,12 @@ class AutoYuketangForHIT:
         """该小节播放完成/不需要播放"""
         if "100%" in work_persent:
             print('该视频不需要播放，跳过')
+            with open(URL_LIST, 'r') as r:
+                lines = r.readlines()
+            with open(URL_LIST, 'w') as w:
+                for l in lines:
+                    if str(url) not in l:
+                        w.write(l)
             return
 
         """"需要播放视频的情况"""
@@ -139,18 +138,25 @@ class AutoYuketangForHIT:
             print('已开始播放，尝试设置二倍速')
             speed_button = WebDriverWait(self.driver, 10, poll_frequency=1).until(
                 ec.presence_of_element_located((By.XPATH, XPATH_BUTTON_SELECT_PLAY_SPEED)))
-            speed_2 = self.driver.find_element_by_xpath(XPATH_BUTTON_2X_SPEED)
             ac(self.driver).move_to_element(speed_button).perform()
             time.sleep(1)
-            speed_2.click()
+            speed_2 = self.driver.find_element("xpath", XPATH_BUTTON_2X_SPEED)
+            # speed_2.click()
+            ac(self.driver).move_to_element(speed_2).move_by_offset(5, 5).click().perform()
             button.click()
             print('已设置为二倍速，等待视频播放完毕……')
 
             to_seconds = lambda x: int(x[1]) * 60 + int(x[2])
-            time_elapsed = to_seconds(self.driver.find_element_by_xpath(XPATH_LABEL_TIME_PLAYED).text.split(':'))
-            time_total = to_seconds(self.driver.find_element_by_xpath(XPATH_LABEL_VIDEO_DURATION).text.split(':'))
+            time_elapsed = to_seconds(self.driver.find_element("xpath", XPATH_LABEL_TIME_PLAYED).text.split(':'))
+            time_total = to_seconds(self.driver.find_element("xpath", XPATH_LABEL_VIDEO_DURATION).text.split(':'))
             self.wait_video_play_finish(time_elapsed, time_total)
             print('视频放完啦，等几秒再看下一个')
+            with open(URL_LIST, 'r') as r:
+                lines = r.readlines()
+            with open(URL_LIST, 'w') as w:
+                for l in lines:
+                    if str(url) not in l:
+                        w.write(l)
             time.sleep(5)
 
     def wait_video_play_finish(self, current_time, target_time):
@@ -160,12 +166,17 @@ class AutoYuketangForHIT:
         :param target_time: 总时间
         :return:
         """
+
+        to_seconds = lambda x: int(x[1]) * 60 + int(x[2])
         while current_time < target_time:
-            time.sleep(1)
-            current_time += 1
+            try:
+                play_button = WebDriverWait(self.driver, 30).until(EC.text_to_be_present_in_element(("xpath", XPATH_BUTTON_PLAY_STATUS), '重播'))
+            except TimeoutException:
+                pass
+            current_time = to_seconds(self.driver.find_element("xpath", XPATH_LABEL_TIME_PLAYED).get_attribute('textContent').split(':'))
             print(f"播放进度：{current_time}s/{target_time}s "
-                  f"(剩余{target_time - current_time}s, "
-                  f"进度：{round(current_time / target_time * 100, 2)}%)")
+                f"(剩余{target_time - current_time}s, "
+                f"进度：{round(current_time / target_time * 100, 2)}%)")
 
     def prepare_video_list(self, location):
         """
@@ -269,7 +280,7 @@ class AutoYuketangForHIT:
             else:
                 # 未登录。打开登录二维码
                 self.wait_element_path_loaded(XPATH_HOME_PAGE_LOGIN_BUTTON)
-                self.driver.find_element_by_xpath(XPATH_HOME_PAGE_LOGIN_BUTTON).click()
+                self.driver.find_element("xpath", XPATH_HOME_PAGE_LOGIN_BUTTON).click()
             input('未登录。请您扫码登录雨课堂，然后按回车键继续……')
 
     def load_cookie(self, with_cookie):
@@ -290,7 +301,7 @@ class AutoYuketangForHIT:
         """载入cookie"""
         cookies = json.load(f)
 
-        self.load_url(HOME_URL)
+        self.load_url(self.home_url)
         self.driver.delete_all_cookies()
         for cookie in cookies:
             self.driver.add_cookie(cookie)
@@ -369,6 +380,7 @@ class AutoYuketangForHIT:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self.course_url = data[0]["URL"]
+                self.home_url = data[0]["HOME_URL"]
                 print(f"成功读取配置文件：{CONFIG_FILE}")
         else:
             print(f"配置文件`{CONFIG_FILE}`不存在，请检查！")
@@ -382,4 +394,4 @@ if __name__ == '__main__':
     mode = ""
     if len(sys.argv) == 2:
         mode = sys.argv[1]
-    AutoYuketangForHIT(mode)
+    AutoYuketang(mode)
