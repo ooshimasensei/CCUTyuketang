@@ -146,7 +146,7 @@ class AutoYuketang:
             button.click()
             print('已设置为二倍速，等待视频播放完毕……')
 
-            to_seconds = lambda x: int(x[1]) * 60 + int(x[2])
+            to_seconds = lambda x: int(x[0]) * 3600 + int(x[1]) * 60 + int(x[2])
             time_elapsed = to_seconds(self.driver.find_element("xpath", XPATH_LABEL_TIME_PLAYED).text.split(':'))
             time_total = to_seconds(self.driver.find_element("xpath", XPATH_LABEL_VIDEO_DURATION).text.split(':'))
             self.wait_video_play_finish(time_elapsed, time_total)
@@ -167,7 +167,7 @@ class AutoYuketang:
         :return:
         """
 
-        to_seconds = lambda x: int(x[1]) * 60 + int(x[2])
+        to_seconds = lambda x: int(x[0]) * 3600 + int(x[1]) * 60 + int(x[2])
         while current_time < target_time:
             try:
                 play_button = WebDriverWait(self.driver, 30).until(EC.text_to_be_present_in_element(("xpath", XPATH_BUTTON_PLAY_STATUS), '重播'))
