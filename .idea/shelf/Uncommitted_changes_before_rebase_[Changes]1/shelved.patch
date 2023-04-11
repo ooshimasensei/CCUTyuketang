@@ -1,0 +1,128 @@
+Index: yuketang.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>#!/usr/bin/env python\r\n# -*- coding:utf-8 -*-\r\n\r\n\"\"\"\r\nBase on https://github.com/xrervip/AutoYuketangforHIT\r\nUse parameter '-CookieMode' to login by cookies from 'cookie.txt'\r\n\"\"\"\r\n\r\nfrom ast import If\r\nfrom selenium.webdriver.support.wait import WebDriverWait\r\nfrom selenium.webdriver.support import expected_conditions as EC\r\nfrom selenium.common.exceptions import TimeoutException\r\nfrom selenium.webdriver.support import expected_conditions as ec\r\nfrom selenium.webdriver.common.action_chains import ActionChains as ac\r\nfrom selenium.webdriver.common.by import By\r\nfrom selenium import webdriver\r\nimport time\r\nimport sys\r\nfrom selenium.webdriver.chrome.options import Options\r\nimport json\r\nimport platform\r\nimport os\r\nimport re\r\n\r\n# from @Keuin: 如果不好使了，可能是因为网页布局有所改变，\r\n# 请自行打开播放页面，用F12逐个定位下面列出的元素，并更新将他们的XPATH常量\r\nXPATH_HOME_PAGE_LOGIN_BUTTON = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[1]/div/div/div/div[2]/button'\r\nXPATH_SCORE_SHEET_VIDEO_HYPERLINK = \"//span[@class='cursorpoint unit-name-hover']\"\r\nXPATH_SCORE_SHEET_VIDEO_LIST = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div[2]/section[2]/div[2]'\r\nXPATH_LABEL_VIDEO_DURATION = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-time/span[2]'\r\nXPATH_LABEL_TIME_PLAYED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-time/span[1]'\r\nXPATH_BUTTON_2X_SPEED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-speedbutton/xt-speedlist/ul/li[1]'\r\nXPATH_BUTTON_SELECT_PLAY_SPEED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-speedbutton/xt-speedvalue'\r\nXPATH_BUTTON_PLAY = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-playbutton'\r\nXPATH_BUTTON_PLAY_STATUS = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-playbutton/xt-tip'\r\nXPATH_VIDEO_PLAYER = \"/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div[2]/div/xt-wrap/xt-bigbutton\"\r\nXPATH_WATCH_PROGRESS = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[1]/div[2]/div/div/span'\r\nXPATH_VIDEO_TITLE = \"/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[1]/div[1]/span\"\r\n\r\n\"\"\"\r\n下一步目标：\r\n1.增加多线程播放功能\r\n2.提高稳定性和健壮性\r\n\"\"\"\r\n\r\nCONFIG_FILE = \"./config.json\"  # 配置文件的路径，一般不需要修改\r\nURL_LIST = \"url_list.txt\"\r\n\r\nclass AutoYuketang:\r\n    course_url = \"\"\r\n    home_url = \"\"\r\n    course_id = \"\"\r\n\r\n    def __init__(self, mode):\r\n\r\n        with_cookie = False\r\n        if \"CookieMode\" in mode:\r\n            with_cookie = True\r\n\r\n        self.set_chrome_driver()\r\n\r\n        self.read_config_file()  # 从JSON读入URL\r\n\r\n        \"\"\"使用CookieMode登录\"\"\"\r\n        self.load_cookie(with_cookie)\r\n\r\n        self.load_url(self.course_url)\r\n\r\n        self.login(with_cookie)\r\n\r\n        while True:\r\n            time.sleep(0.1)\r\n            if self.driver.current_url == self.course_url:\r\n                print(\"成功登录雨课堂\")\r\n                break\r\n\r\n        self.prepare_video_list(URL_LIST)\r\n        self.play_video_list(URL_LIST)\r\n\r\n        self.driver.quit()\r\n\r\n    def play_video_list(self, location):\r\n        \"\"\"\r\n        播放全部的视频\r\n        :param location: 文件的位置\r\n        :return:\r\n        \"\"\"\r\n\r\n        url_list = self.read_url_list(location)\r\n\r\n        for url in url_list:\r\n            self.play_video(url)\r\n\r\n        print(\"已播放列表中的所有视频\")\r\n\r\n    def play_video(self, url):\r\n        \"\"\"\r\n        播放视频\r\n        :param url: 网课的URL\r\n        :return:\r\n        \"\"\"\r\n        print(url)\r\n        self.wait_url_update(url)  # 切换到新的窗口\r\n\r\n        title = self.wait_and_get_element_text(XPATH_VIDEO_TITLE)\r\n        print(\"正在播放:\" + title)\r\n\r\n        try:\r\n            work_persent = self.wait_and_get_element_text(XPATH_WATCH_PROGRESS)\r\n        except TimeoutException:\r\n            work_persent = \"任务进度元素加载失败\"  # 元素加载失败\r\n\r\n        print(\"任务进度：\" + work_persent)\r\n        time.sleep(0.5)\r\n\r\n        \"\"\"该小节播放完成/不需要播放\"\"\"\r\n        if \"100%\" in work_persent:\r\n            print('该视频不需要播放，跳过')\r\n            with open(URL_LIST, 'r') as r:\r\n                lines = r.readlines()\r\n            with open(URL_LIST, 'w') as w:\r\n                for l in lines:\r\n                    if str(url) not in l:\r\n                        w.write(l)\r\n            return\r\n\r\n        \"\"\"\"需要播放视频的情况\"\"\"\r\n        print('该视频需要播放，尝试加速播放')\r\n        print('等待播放器加载完毕')\r\n        self.wait_and_get_element_text(XPATH_VIDEO_PLAYER)\r\n        \"\"\"开始播放\"\"\"\r\n        print('播放器已加载，尝试点击开始播放按钮')\r\n        button = WebDriverWait(self.driver, 10, poll_frequency=2).until(ec.element_to_be_clickable(\r\n            (By.XPATH, XPATH_BUTTON_PLAY)))\r\n\r\n        \"\"\"设置2倍速度\"\"\"\r\n        if button:\r\n            print('已开始播放，尝试设置二倍速')\r\n            speed_button = WebDriverWait(self.driver, 10, poll_frequency=1).until(\r\n                ec.presence_of_element_located((By.XPATH, XPATH_BUTTON_SELECT_PLAY_SPEED)))\r\n            ac(self.driver).move_to_element(speed_button).perform()\r\n            time.sleep(1)\r\n            speed_2 = self.driver.find_element(\"xpath\", XPATH_BUTTON_2X_SPEED)\r\n            # speed_2.click()\r\n            ac(self.driver).move_to_element(speed_2).move_by_offset(5, 5).click().perform()\r\n            button.click()\r\n            print('已设置为二倍速，等待视频播放完毕……')\r\n\r\n            to_seconds = lambda x: int(x[0]) * 3600 + int(x[1]) * 60 + int(x[2])\r\n            time_elapsed = to_seconds(self.driver.find_element(\"xpath\", XPATH_LABEL_TIME_PLAYED).text.split(':'))\r\n            time_total = to_seconds(self.driver.find_element(\"xpath\", XPATH_LABEL_VIDEO_DURATION).text.split(':'))\r\n            self.wait_video_play_finish(time_elapsed, time_total)\r\n            print('视频放完啦，等几秒再看下一个')\r\n            with open(URL_LIST, 'r') as r:\r\n                lines = r.readlines()\r\n            with open(URL_LIST, 'w') as w:\r\n                for l in lines:\r\n                    if str(url) not in l:\r\n                        w.write(l)\r\n            time.sleep(5)\r\n\r\n    def wait_video_play_finish(self, current_time, target_time):\r\n        \"\"\"\r\n        等待视频播放完成\r\n        :param current_time: 当前时间\r\n        :param target_time: 总时间\r\n        :return:\r\n        \"\"\"\r\n\r\n        to_seconds = lambda x: int(x[0]) * 3600 + int(x[1]) * 60 + int(x[2])\r\n        while current_time < target_time:\r\n            try:\r\n                play_button = WebDriverWait(self.driver, 30).until(EC.text_to_be_present_in_element((\"xpath\", XPATH_BUTTON_PLAY_STATUS), '重播'))\r\n            except TimeoutException:\r\n                pass\r\n            current_time = to_seconds(self.driver.find_element(\"xpath\", XPATH_LABEL_TIME_PLAYED).get_attribute('textContent').split(':'))\r\n            print(f\"播放进度：{current_time}s/{target_time}s \"\r\n                f\"(剩余{target_time - current_time}s, \"\r\n                f\"进度：{round(current_time / target_time * 100, 2)}%)\")\r\n\r\n    def prepare_video_list(self, location):\r\n        \"\"\"\r\n        为播放准备连接\r\n        :param location: 保存网课连接的文件地址\r\n        :return:\r\n        \"\"\"\r\n\r\n        self.course_id = \"$\" + \\\r\n                         re.match(\"https://[a-zA-Z0-9.]*/[a-zA-Z]*/[a-zA-Z]*/[a-zA-Z0-9]*/([0-9]+)/score\",\r\n                                  self.driver.current_url).group(1) + \"$\"\r\n        print(\"当前课程ID：\" + self.course_id)\r\n        \"\"\"如果文件不存在的话\"\"\"\r\n        if not os.path.exists(location):\r\n            print(\"URL文件不存在！创建文件\")\r\n            fp = open(location, 'w+', encoding='utf-8')\r\n            fp.close()\r\n\r\n        fp = open(location, 'r+', encoding='utf-8')\r\n        lines = fp.readlines()  # 读取所有行\r\n        last_line = \"\"\r\n        if len(lines) != 0:\r\n            last_line = lines[-1]  # 取最后一行\r\n        if self.course_id not in last_line:\r\n            print(\"URL未构建或构建不完全\")\r\n            fp.close()\r\n            self.get_video_list(location)\r\n        else:\r\n            fp.close()\r\n            print(\"检测到校验位，已从历史记录中获取链接\")\r\n\r\n        print(\"全部链接已就绪\")\r\n\r\n        return\r\n\r\n    def get_video_list(self, location):\r\n        \"\"\"\r\n        爬取全部网课连接\r\n        :param location: 保存网课连接的文件地址\r\n        :return:\r\n        \"\"\"\r\n        with open(location, 'w+', encoding='utf-8') as fp:\r\n            self.driver.get(self.course_url)\r\n            self.wait_element_path_loaded(XPATH_SCORE_SHEET_VIDEO_LIST)\r\n            # \"/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div[2]/section[2]/div[2]/ul/li[1]/div[1]/div/span\")\r\n            video_button_list = self.driver.find_elements(By.XPATH, XPATH_SCORE_SHEET_VIDEO_HYPERLINK)\r\n            print(\"正在爬取全部视频网页连接\")\r\n            for i in video_button_list:\r\n                i.click()\r\n                main_window_handle = self.driver.current_window_handle  # 当前主窗口\r\n                window_handles = self.driver.window_handles  # 全部窗口句柄\r\n                # 对窗口进行遍历\r\n                for handle in window_handles:\r\n                    # 筛选新打开的窗口B\r\n                    if handle != main_window_handle:\r\n                        # 不是主窗口。切换到新打开的窗口B\r\n                        # browser.switch_to_window(handle) 旧版本\r\n                        self.driver.switch_to.window(handle)\r\n                        current_url = (self.driver.current_url + '\\r')\r\n                        if \"/video/\" in self.driver.current_url:\r\n                            print(self.driver.current_url)\r\n                            fp.writelines(current_url)\r\n                            fp.flush()\r\n                        self.driver.close()\r\n                        self.driver.switch_to.window(main_window_handle)\r\n                        time.sleep(0.5)\r\n            fp.writelines(self.course_id)\r\n            fp.flush()\r\n            fp.close()\r\n        return\r\n\r\n    def read_url_list(self, location):\r\n        url_list = []\r\n        with open(location, 'r', encoding='utf-8') as fp:\r\n            url_content = fp.readlines()\r\n            for url in url_content:\r\n                if self.course_id not in url:\r\n                    url = url[:-1]\r\n                    url_list.append(url)\r\n            fp.close()\r\n        return url_list\r\n\r\n    def login(self, with_login_cookie):\r\n        \"\"\"\r\n          雨课堂登录\r\n          :param with_login_cookie:  如果使用cookie，则不需要登录\r\n          :return:\r\n          \"\"\"\r\n\r\n        if with_login_cookie:\r\n            return\r\n\r\n        print(\"未指定cookie，需要手动登录雨课堂\")\r\n        # self.load_url(self.home_url)\r\n        while True:\r\n            self.load_url(self.course_url)\r\n            # time.sleep(5)\r\n            if self.course_url == self.driver.current_url:\r\n                print('登录成功！')\r\n                return\r\n            else:\r\n                # 未登录。打开登录二维码\r\n                self.wait_element_path_loaded(XPATH_HOME_PAGE_LOGIN_BUTTON)\r\n                self.driver.find_element(\"xpath\", XPATH_HOME_PAGE_LOGIN_BUTTON).click()\r\n            input('未登录。请您扫码登录雨课堂，然后按回车键继续……')\r\n\r\n    def load_cookie(self, with_cookie):\r\n        \"\"\"\r\n        从cookie载入登录信息\r\n        :return: 是否成功载入cookie\r\n        \"\"\"\r\n        if not with_cookie:\r\n            return\r\n\r\n        print(\"从Cookie文件加载登录信息\")\r\n        try:\r\n            f = open(\"./cookie.json\", 'r', encoding='utf-8')\r\n        except FileNotFoundError:\r\n            print(\"未检测到Cookie.json，需要进行手动登录\")\r\n            return False\r\n\r\n        \"\"\"载入cookie\"\"\"\r\n        cookies = json.load(f)\r\n\r\n        self.load_url(self.home_url)\r\n        self.driver.delete_all_cookies()\r\n        for cookie in cookies:\r\n            self.driver.add_cookie(cookie)\r\n\r\n        return True\r\n\r\n    def set_chrome_driver(self):\r\n        \"\"\"\r\n        根据系统环境配置chormedriver\r\n        :return:\r\n        \"\"\"\r\n        chrome_options = Options()\r\n\r\n        if platform.system() == \"Linux\":  # for Linux\r\n            # 16年之后，chrome给出的解决办法，抢了PhantomJS饭碗\r\n            chrome_options.add_argument('--headless')\r\n            chrome_options.add_argument('--no-sandbox')  # root用户不加这条会无法运行\r\n            chrome_options.add_argument('--disable-gpu')\r\n            chrome_options.add_argument(\"--mute-audio\")  # 静音播放\r\n        else:  # for other OS\r\n            chrome_options.add_argument(\"--mute-audio\")  # 静音播放\r\n\r\n        self.driver = webdriver.Chrome(chrome_options=chrome_options)\r\n\r\n        print(\"成功配置chrome驱动\")\r\n\r\n    def wait_url_update(self, target_url, timeout=10.0):\r\n        \"\"\"\r\n        等待直到url更新为目标url\r\n        :param target_url: 预计更新后的目标url\r\n        :param timeout: 超时时间\r\n        :return:\r\n        \"\"\"\r\n        self.load_url(target_url)\r\n        while target_url != self.driver.current_url and timeout > 0:\r\n            time.sleep(0.1)\r\n            timeout -= 0.1\r\n        if timeout <= 0:\r\n            raise TimeoutException()\r\n\r\n    def wait_element_path_loaded(self, element_xpath):\r\n        \"\"\"\r\n        等待相应xpath的元素加载完成\r\n        :param element_xpath: 元素xpath\r\n        :return: 对对应的元素\r\n        \"\"\"\r\n        element = WebDriverWait(self.driver, 20).until(\r\n            EC.presence_of_element_located((By.XPATH, element_xpath))\r\n        )\r\n        return element\r\n\r\n    def wait_and_click(self, element_xpath):\r\n        \"\"\"\r\n        等待相应id的元素加载完成后点击元素\r\n        :param element_xpath: 元素path\r\n        :return:\r\n        \"\"\"\r\n        element = self.wait_element_path_loaded(element_xpath)\r\n        element.click()\r\n\r\n    def wait_and_get_element_text(self, element_xpath):\r\n        \"\"\"\r\n        等待相应id的元素加载完成后点获取其中的文字信息\r\n        :param element_xpath: 元素path\r\n        :return:\r\n        \"\"\"\r\n        element = self.wait_element_path_loaded(element_xpath)\r\n        return element.text\r\n\r\n    def read_config_file(self):\r\n        \"\"\"\r\n        从JSON中读取数据，并写入URL\r\n        :return:\r\n        \"\"\"\r\n        if os.path.isfile(CONFIG_FILE):\r\n            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:\r\n                data = json.load(f)\r\n                self.course_url = data[0][\"URL\"]\r\n                self.home_url = data[0][\"HOME_URL\"]\r\n                print(f\"成功读取配置文件：{CONFIG_FILE}\")\r\n        else:\r\n            print(f\"配置文件`{CONFIG_FILE}`不存在，请检查！\")\r\n\r\n    def load_url(self, url):\r\n        self.driver.get(url)\r\n        self.driver.implicitly_wait(5)\r\n\r\n\r\nif __name__ == '__main__':\r\n    mode = \"\"\r\n    if len(sys.argv) == 2:\r\n        mode = sys.argv[1]\r\n    AutoYuketang(mode)\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/yuketang.py b/yuketang.py
+--- a/yuketang.py	(revision 4ba871bc90a777e0c0f0129832c29f8e8d1b26c6)
++++ b/yuketang.py	(date 1681130688685)
+@@ -25,17 +25,17 @@
+ # from @Keuin: 如果不好使了，可能是因为网页布局有所改变，
+ # 请自行打开播放页面，用F12逐个定位下面列出的元素，并更新将他们的XPATH常量
+ XPATH_HOME_PAGE_LOGIN_BUTTON = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[1]/div/div/div/div[2]/button'
+-XPATH_SCORE_SHEET_VIDEO_HYPERLINK = "//span[@class='cursorpoint unit-name-hover']"
+-XPATH_SCORE_SHEET_VIDEO_LIST = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div[2]/section[2]/div[2]'
+-XPATH_LABEL_VIDEO_DURATION = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-time/span[2]'
+-XPATH_LABEL_TIME_PLAYED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-time/span[1]'
+-XPATH_BUTTON_2X_SPEED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-speedbutton/xt-speedlist/ul/li[1]'
+-XPATH_BUTTON_SELECT_PLAY_SPEED = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-speedbutton/xt-speedvalue'
+-XPATH_BUTTON_PLAY = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div/div/xt-wrap/xt-controls/xt-inner/xt-playbutton'
+-XPATH_BUTTON_PLAY_STATUS = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-playbutton/xt-tip'
+-XPATH_VIDEO_PLAYER = "/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[2]/div[1]/div/div[2]/div/xt-wrap/xt-bigbutton"
+-XPATH_WATCH_PROGRESS = '/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[1]/div[2]/div/div/span'
+-XPATH_VIDEO_TITLE = "/html/body/div[4]/div[2]/div[2]/div[3]/div/div[2]/div/div/section[1]/div[1]/span"
++XPATH_SCORE_SHEET_VIDEO_HYPERLINK = '/html/body/div[4]/div[2]/div/div[1]/div[2]/div[1]/div/div/div/div[6]'
++XPATH_SCORE_SHEET_VIDEO_LIST = '/html/body/div[4]/div[2]/div/div[1]/div[2]/div[2]/div[6]/div/div[2]/section[2]/div[2]'
++XPATH_LABEL_VIDEO_DURATION = '/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[2]/div/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-time/span[2]'
++XPATH_LABEL_TIME_PLAYED = '/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[2]/div/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-time/span[1]'
++XPATH_BUTTON_2X_SPEED = '/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[2]/div/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-speedbutton/xt-speedlist/ul/li[1]'
++XPATH_BUTTON_SELECT_PLAY_SPEED = '/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[2]/div/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-speedbutton/xt-speedvalue'
++XPATH_BUTTON_PLAY = '/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[2]/div/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-playbutton'
++XPATH_BUTTON_PLAY_STATUS = '/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[2]/div/div/div[2]/div/xt-wrap/xt-controls/xt-inner/xt-playbutton/xt-tip'
++XPATH_VIDEO_PLAYER = "/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[2]/div/div/div[2]/div/xt-wrap/xt-bigbutton"
++XPATH_WATCH_PROGRESS = '/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[1]/div[2]/div/div/span'
++XPATH_VIDEO_TITLE = "/html/body/div[4]/div[2]/div/div[2]/div/div/div/section[1]/div[1]/span"
+ 
+ """
+ 下一步目标：
+Index: .idea/inspectionProfiles/profiles_settings.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/inspectionProfiles/profiles_settings.xml b/.idea/inspectionProfiles/profiles_settings.xml
+new file mode 100644
+--- /dev/null	(date 1681129062867)
++++ b/.idea/inspectionProfiles/profiles_settings.xml	(date 1681129062867)
+@@ -0,0 +1,6 @@
++<component name="InspectionProjectProfileManager">
++  <settings>
++    <option name="USE_PROJECT_PROFILE" value="false" />
++    <version value="1.0" />
++  </settings>
++</component>
+\ No newline at end of file
+Index: .idea/misc.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+new file mode 100644
+--- /dev/null	(date 1681129062764)
++++ b/.idea/misc.xml	(date 1681129062764)
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.9 (AutoYuketang)" project-jdk-type="Python SDK" />
++</project>
+\ No newline at end of file
+Index: .idea/vcs.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/vcs.xml b/.idea/vcs.xml
+new file mode 100644
+--- /dev/null	(date 1681129062901)
++++ b/.idea/vcs.xml	(date 1681129062901)
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="VcsDirectoryMappings">
++    <mapping directory="$PROJECT_DIR$" vcs="Git" />
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/modules.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/modules.xml b/.idea/modules.xml
+new file mode 100644
+--- /dev/null	(date 1681129062834)
++++ b/.idea/modules.xml	(date 1681129062834)
+@@ -0,0 +1,8 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="ProjectModuleManager">
++    <modules>
++      <module fileurl="file://$PROJECT_DIR$/.idea/AutoYuketang.iml" filepath="$PROJECT_DIR$/.idea/AutoYuketang.iml" />
++    </modules>
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/AutoYuketang.iml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/AutoYuketang.iml b/.idea/AutoYuketang.iml
+new file mode 100644
+--- /dev/null	(date 1681129062800)
++++ b/.idea/AutoYuketang.iml	(date 1681129062800)
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<module type="PYTHON_MODULE" version="4">
++  <component name="NewModuleRootManager">
++    <content url="file://$MODULE_DIR$">
++      <excludeFolder url="file://$MODULE_DIR$/venv" />
++    </content>
++    <orderEntry type="inheritedJdk" />
++    <orderEntry type="sourceFolder" forTests="false" />
++  </component>
++</module>
+\ No newline at end of file
