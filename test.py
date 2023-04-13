@@ -265,6 +265,7 @@ class AutoYuketang:
 
             to_seconds = lambda x: int(x[0]) * 3600 + int(x[1]) * 60 + int(x[2])
             while True:
+                self.wait_element_path_loaded(XPATH_LABEL_VIDEO_DURATION)
                 time_total = to_seconds(self.driver.find_element("xpath", XPATH_LABEL_VIDEO_DURATION).text.split(':'))
                 if time_total!=0:
                     break;
